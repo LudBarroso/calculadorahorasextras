@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Calculadora de Horas Extras / TAC</title>
+
+  <style>
+    :root{
+      --bg:#0b1220;
+      --card:#0f1a30;
+      --txt:#eaf0ff;
+      --muted:#b8c3e6;
+      --line:rgba(255,255,255,.12);
+      --okbg:rgba(16,185,129,.15);
+      --okbd:rgba(16,185,129,.4);
+      --warnbg:rgba(245,158,11,.15);
+      --warnbd:rgba(245,158,11,.4);
+      --btn:#2563eb;
+      --btn2:rgba(255,255,255,.08);
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
+      background:var(--bg);
+      color:var(--txt);
+    }
+    .wrap{max-width:900px;margin:auto;padding:28px 16px 40px}
+    h1{margin:0 0 6px;font-size:22px}
+    .sub{color:var(--muted);margin-bottom:18px}
+    .card{
+      background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.03));
+      border:1px solid var(--line);
+      border-radius:16px;
+      padding:16px;
+    }
+    .grid{
+      display:grid;
+      grid-template-columns:1fr 1fr 1fr;
+      gap:12px;
+    }
+    @media(max-width:800px){
+      .grid{grid-template-columns:1fr}
+    }
+    label{font-size:12px;color:var(--muted)}
+    input,select{
+      width:100%;
+      padding:12px;
+      border-radius:12px;
+      border:1px solid var(--line);
+      background:rgba(0,0,0,.25);
+      color:var(--txt);
+      font-size:15px;
+    }
+    .hint{font-size:12px;color:var(--muted);margin-top:6px}
+    .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+    button{
+      border:0;
+      border-radius:12px;
+      padding:11px 16px;
+      font-weight:700;
+      cursor:pointer;
+      color:var(--txt);
+    }
+    .primary{background:var(--btn)}
+    .secondary{background:var(--btn2);border:1px solid var(--line)}
+    .results{
+      margin-top:16px;
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:12px;
+    }
+    @media(max-width:800px){
+      .results{grid-template-columns:1fr}
+    }
+    .kpi{
+      background:rgba(0,0,0,.2);
+      border:1px dashed var(--line);
+      border-radius:16px;
+      padding:14px;
+    }
+    .kpi b{display:block;font-size:12px;color:var(--muted);margin-bottom:6px}
+    .kpi .v{font-size:22px;font-weight:900}
+    .msg{
+      margin-top:14px;
+      border-radius:16px;
+      padding:12px 14px;
+      border:1px solid;
+    }
+    .ok{background:var(--okbg);border-color:var(--okbd)}
+    .warn{background:var(--warnbg);border-color:var(--warnbd)}
+    .foot{margin-top:10px;font-size:12px;color:var(--muted)}
+  </style>
+</head>
+
+<body>
+<div class="wrap">
+  <h1>Calculadora de Horas Extras / TAC</h1>
+  <div class="sub">
+    Informe entrada e saída. O intervalo é automático conforme a carga.
+    Limite diário: <b>10h trabalhadas</b>.
+  </div>
+
+  <div class="card">
+    <div class="grid">
+      <div>
+        <label>Carga horária diária</label>
+        <select id="carga">
+          <option value="08:48">08:48 (intervalo 01:15)</option>
+          <option value="07:20">07:20 (intervalo 01:00)</option>
+        </select>
+        <div class="hint">Intervalo descontado automaticamente se ≥ 6h.</div>
+      </div>
+
+      <div>
+        <label>Hora de entrada</label>
+        <input type="time" id="entrada">
+      </div>
+
+      <div>
+        <label>Hora de saída</label>
+        <input type="time" id="saida">
+        <div class="hint">Se for menor que a entrada, assume que virou o dia.</div>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button class="primary" onclick="calcular()">Calcular</button>
+      <button class="secondary" onclick="exemplo()">Exemplo</button>
+      <button class="secondary" onclick="limpar()">Limpar</button>
+    </div>
+
+    <div class="results">
+      <div class="kpi">
+        <b>Trabalhado (intervalo descontado)</b>
+        <div class="v" id="outTrabalhado">—</div>
+      </div>
+
+      <div class="kpi">
+        <b>Horas extras do dia</b>
+        <div class="v" id="outExtra">—</div>
+      </div>
+
+      <div class="kpi">
+        <b>Até que horas pode ficar</b>
+        <div class="v" id="outPode">—</div>
+      </div>
+
+      <div class="kpi">
+        <b>Intervalo aplicado</b>
+        <div class="v" id="outIntervalo">—</div>
+      </div>
+    </div>
+
+    <div id="outMsg"></div>
+
+    <div class="foot">
+      Regra: máximo de <b>10:00</b> trabalhadas no dia.
+    </div>
+  </div>
+</div>
+
+<script>
+function min(hm){
+  if(!hm) return null;
+  const [h,m]=hm.split(":").map(Number);
+  return h*60+m;
+}
+function fmt(m){
+  if(m==null||!isFinite(m))return "—";
+  const s=m<0?"-":"";
+  m=Math.abs(Math.round(m));
+  return s+String(Math.floor(m/60)).padStart(2,"0")+":"+String(m%60).padStart(2,"0");
+}
+function fmtHora(m){
+  m=((m%1440)+1440)%1440;
+  return String(Math.floor(m/60)).padStart(2,"0")+":"+String(m%60).padStart(2,"0");
+}
+function cargaMin(c){
+  const [h,m]=c.split(":").map(Number);
+  return h*60+m;
+}
+function intervalo(c){return c==="08:48"?75:60}
+
+function calcular(){
+  const carga=document.getElementById("carga").value;
+  let e=min(document.getElementById("entrada").value);
+  let s=min(document.getElementById("saida").value);
+
+  if(e==null||s==null){
+    msg("Preencha entrada e saída.","warn");return;
+  }
+  if(s<=e)s+=1440;
+
+  const permanencia=s-e;
+  const intv=permanencia>=360?intervalo(carga):0;
+  const trab=permanencia-intv;
+  const extra=Math.max(0,trab-cargaMin(carga));
+
+  // até que horas pode ficar (10h)
+  let max=e;
+  for(let t=e;t<=e+1440;t++){
+    const p=t-e;
+    const i=p>=360?intervalo(carga):0;
+    if(p-i<=600)max=t;else break;
+  }
+
+  document.getElementById("outIntervalo").innerText=fmt(intv);
+  document.getElementById("outTrabalhado").innerText=fmt(trab);
+  document.getElementById("outExtra").innerText=fmt(extra);
+  document.getElementById("outPode").innerText=fmtHora(max);
+
+  trab>600
+    ?msg("⚠️ Atenção: ultrapassou 10h trabalhadas (TAC).","warn")
+    :msg("✅ Dentro do limite diário.","ok");
+}
+function exemplo(){
+  document.getElementById("entrada").value="07:40";
+  document.getElementById("saida").value="18:16";
+  calcular();
+}
+function limpar(){
+  ["outIntervalo","outTrabalhado","outExtra","outPode"].forEach(id=>document.getElementById(id).innerText="—");
+  document.getElementById("outMsg").innerHTML="";
+}
+function msg(t,tipo){
+  document.getElementById("outMsg").innerHTML=
+    <div class="msg ${tipo}">${t}</div>;
+}
+</script>
+</body>
+</html>
